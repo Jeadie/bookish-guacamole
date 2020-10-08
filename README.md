@@ -55,7 +55,9 @@ Generated on an update to the table ``, within the DynamoDB. See [DynamoDB Schem
 
 # Solution Documentation
 ## Architecture
+![Infrastructure Architecture](architecture-diagram.png)
 ## DynamoDB Schema 
 
 ## Design Considerations
 * As mentioned in assumptions, the success rate is calculated using message received events that are more recent than the most recent weekly message event. This is a stream-based design. A batch solution would process, like the weekly message event, on a timed schedule. In this example service, a 
+* Use DynamoD
