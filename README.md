@@ -5,9 +5,8 @@ TODO
 
 # Service Requirements
 ## Assumptions 
-  * Not considering the unsuccessful messages that have been attempted since the most recent, weekly diagnostic event. In practice, this will lead to a spiked estimate of success such that, after each weekly event, the success rate will be an overestimate of the success rate until the next weekly event corrects for this (lowering the success rate to its true value). It was chosen to not use a forecast of the previous success rate to compensate (e.g. a uniform number of unsuccessful message based on the prior weekly diagnostic) as this would poison the the accuracy of data created by the service that would need data remediation See [Design Considerations](#design-considerations) for discussion on alternatives.
+  * Batch based off weekly events
   * Success rate is calculated across all time. 
-
 
 ## Event schema
 
@@ -56,8 +55,33 @@ Generated on an update to the table ``, within the DynamoDB. See [DynamoDB Schem
 # Solution Documentation
 ## Architecture
 ![Infrastructure Architecture](architecture-diagram.png)
+  The above diagram outlines the design for the service. Amazon SNS is used as the messaging service within the event-driven architecture. AWS Lambdas are used as the underlying compute for the service, and are both consumers and produces of messages from the various events (see above for event schema and naming). DynamoDB is used as a mock data lake (for need of rapid development) for the service. This choice is for two reasons: namely the prior mentioned rapid development, and DynamoDB's event triggers. 
+
+The Success Rate microservice listens for updates from the table ``, whereby weekly diagnostic data is stored (see [below](design-considerations) for rationale). 
+
 ## DynamoDB Schema 
 
+Table: `message_recv`
+  Primary Key (composite): 
+    * Partition Key: `moduleId`
+    * Sort Key: `timestamp`
+  
+  Attributes:
+    * `moduleId`: string, S
+    * `timestamp`: int, N
+
+Table: `weekly_diagnostic`
+   Primary Key (composite): 
+    * Partition Key: `moduleId`
+    * Sort Key: `timestamp`
+  
+  Attributes:
+    * `moduleId`: string, S
+    * `timestamp`: int, N
+    * `attempts`: int, N
+
+
 ## Design Considerations
-* As mentioned in assumptions, the success rate is calculated using message received events that are more recent than the most recent weekly message event. This is a stream-based design. A batch solution would process, like the weekly message event, on a timed schedule. In this example service, a 
-* Use DynamoD
+ * The decision to trigger the success rate based off the weekly diagnostic is for two reasons (and for lack of strict requirement). Firstly, more frequent updates will be incorrect and/or require data remediation. Consider `message_recv` events for a module with a timestamp after the module's most recent `weekly_diagnostic`. Aggregating such successful messages will bias the success rate (hence incorrect), and depending on the use of the `success_rate` events, other microservices will require data remediation (once a new `weekly_diagnostic` for the module arrives). 
+ * DynamoDB is not a suitable for a full analytics system. It is intended as a mock datastore for the remaining decisions about the service. 
+ * Except to create tables easily queriable by moduleID (the current main use case), little schema design has been considered.
