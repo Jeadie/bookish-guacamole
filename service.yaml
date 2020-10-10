@@ -1,5 +1,5 @@
+Description: "Deploy basic analytics SNS, DynamoDB, Lambda microservice"
 Resources:
-
   ##
   # SNS TOPICS
   ##
@@ -9,7 +9,7 @@ Resources:
       TopicName: recv_message
       Subscription:
         - Protocol: lambda
-          Endpoint: !GetAtt ProcessMessageRecvFunction.arn
+          Endpoint: !GetAtt ProcessMessageRecvFunction.Arn
 
   WeeklyDiagnosticSNS:
     Type: AWS::SNS::Topic
@@ -17,41 +17,48 @@ Resources:
       TopicName: weekly_diagnostic
       Subscription:
         - Protocol: lambda
-          Endpoint: GetAtt WeeklyDiagnosticFunction.arn
+          Endpoint: !GetAtt WeeklyDiagnosticFunction.Arn
 
   SuccessRateSNS:
     Type: AWS::SNS::Topic
     Properties: 
       TopicName: success_rate
 
-  SNSTopicPolicy:
-    Type: 'AWS::SNS::TopicPolicy'
-    Properties:
-      Topics:
-        - !Ref RecvMessageSNS
-        - !Ref WeeklyDiagnosticSNS
-        - !Ref SuccessRateSNS
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Action: 'sns:Publish'
-            Principal:
-              AWS: '*'
-            Condition:
-              ArnLike:
-                AWS:SourceArn: !Sub 'arn:aws:*:*:${AWS::AccountId}:*'
+      #  SNSPolicy:
+      #    Type: 'AWS::SNS::TopicPolicy'
+      #    Properties:
+      #      Topics: [ !Ref 'SuccessRateSNS',  !Ref 'RecvMessageSNS',  !Ref 'WeeklyDiagnosticSNS' ]
+      #      PolicyDocument:
+      #        Statement:
+      #          - Effect: Allow
+      #            Action: 'sns:Publish'
+      #            Principal:
+      #              AWS: '*'
+      #            Condition:
+      #              ArnLike:
+      #                AWS:SourceArn: !Sub 'arn:aws:*:*:${AWS::AccountId}:*'
                 
   ##
   # LAMBDA FUNCTIONS
   ##
   LambdaRole:
     Type: AWS::IAM::Role
-    RoleName: LambdaRole
-    Description: Role for Lambda functions DynamoDB and SNS.
-    Properties: 
-    Policies:
-    - AmazonDynamoDBFullAccess
-    - AmazonSNSFullAccess
+    Properties:
+      RoleName: LambdaRole
+      Description: Role for Lambda functions DynamoDB and SNS.
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+            - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+      Path: /
+
   ProcessMessageRecvFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -73,15 +80,16 @@ Resources:
                    moduleId: message.moduleId ,
                    timestamp: message.timestamp,
                    }
-               }
+               };
                dynamoDB
                    .put(params)
                    .promise()
                    .then(res => res)
                    .catch(err => err);
-               };
+               }
+             );
           };
-      Runtime: nodejs8.10
+      Runtime: nodejs12.x
 
   MessageRecvInvokePermission:
     Type: 'AWS::Lambda::Permission'
@@ -112,15 +120,16 @@ Resources:
                    timestamp: message.timestamp,
                    attempts: message.attempts
                    }
-               }
+               };
                dynamoDB
                    .put(params)
                    .promise()
                    .then(res => res)
                    .catch(err => err);
-               };
+               }
+            );
           };
-      Runtime: nodejs8.10
+      Runtime: nodejs12.x
 
   WeeklyDiagnosticInvokePermission:
     Type: 'AWS::Lambda::Permission'
@@ -144,7 +153,7 @@ Resources:
              responseData.Value.push(event.ResourceProperties.AppendedItem);
              response.send(event, context, response.SUCCESS, responseData);
           };
-      Runtime: nodejs8.10
+      Runtime: nodejs12.x
 
   ##
   # DYNAMO DB
@@ -174,6 +183,8 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: weekly_diagnostic
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
       AttributeDefinitions:
         -
           AttributeName: "moduleId"
