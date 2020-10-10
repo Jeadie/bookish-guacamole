@@ -1,0 +1,208 @@
+Resources:
+
+  ##
+  # SNS TOPICS
+  ##
+  RecvMessageSNS:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: recv_message
+      Subscription:
+        - Protocol: lambda
+          Endpoint: !GetAtt ProcessMessageRecvFunction.arn
+
+  WeeklyDiagnosticSNS:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: weekly_diagnostic
+      Subscription:
+        - Protocol: lambda
+          Endpoint: GetAtt WeeklyDiagnosticFunction.arn
+
+  SuccessRateSNS:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: success_rate
+
+  SNSTopicPolicy:
+    Type: 'AWS::SNS::TopicPolicy'
+    Properties:
+      Topics:
+        - !Ref RecvMessageSNS
+        - !Ref WeeklyDiagnosticSNS
+        - !Ref SuccessRateSNS
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: 'sns:Publish'
+            Principal:
+              AWS: '*'
+            Condition:
+              ArnLike:
+                AWS:SourceArn: !Sub 'arn:aws:*:*:${AWS::AccountId}:*'
+                
+  ##
+  # LAMBDA FUNCTIONS
+  ##
+  LambdaRole:
+    Type: AWS::IAM::Role
+    RoleName: LambdaRole
+    Description: Role for Lambda functions DynamoDB and SNS.
+    Properties: 
+    Policies:
+    - AmazonDynamoDBFullAccess
+    - AmazonSNSFullAccess
+  ProcessMessageRecvFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ProcessMessageRecv
+      Description: Processes message_recv from SNS topic and save to DynamoDB.
+      Handler: index.handlera
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        ZipFile: |
+          var AWS = require('aws-sdk');
+          exports.handler = function(event, context) {
+            console.log('Received event --', JSON.stringify(event, null, 4));
+             const dynamoDB = new AWS.DynamoDB.DocumentClient();
+             event.Records.forEach(function(msg) {
+               var message  =  JSON.parse(msg.Sns.Message);
+               const params = {
+                 TableName: "message_recv",
+                 Item: {
+                   moduleId: message.moduleId ,
+                   timestamp: message.timestamp,
+                   }
+               }
+               dynamoDB
+                   .put(params)
+                   .promise()
+                   .then(res => res)
+                   .catch(err => err);
+               };
+          };
+      Runtime: nodejs8.10
+
+  MessageRecvInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref ProcessMessageRecvFunction
+      Principal: sns.amazonaws.com 
+
+  WeeklyDiagnosticFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: WeeklyDiagnostic
+      Description: Processes weekly_diagnostic from SNS topic and save to DynamoDB.
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        ZipFile: |
+          var AWS = require('aws-sdk');
+          exports.handler = function(event, context) {
+            console.log('Received event --', JSON.stringify(event, null, 4));
+             const dynamoDB = new AWS.DynamoDB.DocumentClient();
+             event.Records.forEach(function(msg) {
+               var message = JSON.parse(msg.Sns.Message);
+               const params = {
+                 TableName: "weekly_diagnostics",
+                 Item: {
+                   moduleId: message.moduleId ,
+                   timestamp: message.timestamp,
+                   attempts: message.attempts
+                   }
+               }
+               dynamoDB
+                   .put(params)
+                   .promise()
+                   .then(res => res)
+                   .catch(err => err);
+               };
+          };
+      Runtime: nodejs8.10
+
+  WeeklyDiagnosticInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref WeeklyDiagnosticFunction
+      Principal: sns.amazonaws.com 
+
+  SuccessRateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: SuccessRate
+      Description: Computes the success rate of modules from DynamoDB events.
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        ZipFile: |
+          var response = require('cfn-response');
+          exports.handler = function(event, context) {
+             var responseData = {Value: event.ResourceProperties.List};
+             responseData.Value.push(event.ResourceProperties.AppendedItem);
+             response.send(event, context, response.SUCCESS, responseData);
+          };
+      Runtime: nodejs8.10
+
+  ##
+  # DYNAMO DB
+  ##
+  DDBMessageTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: message_recv
+      AttributeDefinitions:
+        -
+          AttributeName: "moduleId"
+          AttributeType: "S"
+        -
+          AttributeName: "timestamp"
+          AttributeType: "N"
+      KeySchema:
+        -
+          AttributeName: "moduleId"
+          KeyType: "HASH"
+        -
+          AttributeName: "timestamp"
+          KeyType: "RANGE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+  DDBDiagnosticTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: weekly_diagnostic
+      AttributeDefinitions:
+        -
+          AttributeName: "moduleId"
+          AttributeType: "S"
+        -
+          AttributeName: "timestamp"
+          AttributeType: "N"
+      KeySchema:
+        -
+          AttributeName: "moduleId"
+          KeyType: "HASH"
+        -
+          AttributeName: "timestamp"
+          KeyType: "RANGE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+  DynamoDBTableStream:
+      Type: AWS::Lambda::EventSourceMapping
+      Properties:
+        # The maximum number of DB items to send to Lambda
+        BatchSize: 1  # It can be changed based on the need
+        Enabled: True
+        EventSourceArn: !GetAtt DDBDiagnosticTable.StreamArn
+        # TODO: add lambda into this file
+        FunctionName: !GetAtt SuccessRateFunction.Arn
+        # Always start at the tail of the Stream
+        StartingPosition: LATEST
+
+
+
+

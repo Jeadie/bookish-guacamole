@@ -22,6 +22,7 @@ Where:
  * `moduleId`: is the unique identifier of a module. 
  * `tx_attempts`: is the cumulative count since the module was reset
 Generated for every message received, successfully, from an IoT device. 
+SNSTopic Name: `recv_message`
 
 ### Weekly Message Event 
 ```
@@ -36,6 +37,7 @@ Where:
  * `timestamp`: a unix timestamp (1/1/1970)
  * `attempts`: the cumulative count of attempted message transmissions since the module was reset
 Generated on a time scheduled basis, weekly. 
+SNSTopic Name: `weekly_diagnostic`
 
 ### Success Rate Event
 ```
@@ -50,7 +52,9 @@ Where:
  * `timestamp`: a unix timestamp (1/1/1970)
  * `success_rate`: the percentage attempted message transmissions which have been successfully received
 
-Generated on an update to the table ``, within the DynamoDB. See [DynamoDB Schema](#dynamodb-schema).  
+Generated on an update to the table ``, within the DynamoDB. See [DynamoDB Schema](#dynamodb-schema).
+SNSTopic Name: `success_rate`
+ 
 
 # Solution Documentation
 ## Architecture
