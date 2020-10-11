@@ -59,13 +59,12 @@ Resources:
           import json
           dynamodb = boto3.client('dynamodb')
           
-          def handler(event, context):
-              print(f"Event: {event}")
+          def handler(event, context): 
+              print(f"Processing Event: {event}")
               for r in event["Records"]:
-                  print(f"Records: {r}")
+                  print(f"Processing Record: {r}")
                   msg = json.loads(r["Sns"]["Message"])
                   print(f"Message: {msg}")
-                  print(msg, type(msg))
                   entry = {
                       'moduleId': {
                           'S': msg["moduleid"]
@@ -74,7 +73,6 @@ Resources:
                           'N': str(msg['timestamp'])
                       }
                   }
-                  print(f"Entry: {entry}")
                   dynamodb.put_item(
                       TableName='message_recv',
                       Item=entry
@@ -103,12 +101,11 @@ Resources:
           dynamodb = boto3.client('dynamodb')
           
           def handler(event, context): 
-              print(f"Event: {event}")
+              print(f"Processing Event: {event}")
               for r in event["Records"]:
-                  print(f"Records: {r}")
+                  print(f"Processing Record: {r}")
                   msg = json.loads(r["Sns"]["Message"])
                   print(f"Message: {msg}")
-                  print(msg, type(msg))
                   entry = {
                       'moduleId': {
                           'S': msg["moduleid"]
@@ -120,7 +117,6 @@ Resources:
                           'N': str(msg['attempts'])
                       }
                   }
-                  print(f"Entry: {entry}")
                   dynamodb.put_item(
                       TableName='weekly_diagnostic',
                       Item=entry
@@ -166,7 +162,7 @@ Resources:
                   successful_messages = dynamodb.Table('message_recv').query(
                       KeyConditionExpression=Key('moduleId').eq(moduleId)
                   )
-                  rate = len(successful_messages)/attempts
+                  rate = successful_messages["Count"]/attempts
                   print(f"Success rate for module: {moduleId} is {rate*100}%")
                   message = {
                     "moduleId": moduleId,
