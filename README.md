@@ -3,6 +3,21 @@
 # Overview
 Bookish Guacomole deploys a basic analytics microservice using AWS Lambda, SNS and DynamoDB. `service.yaml` contains the full CloudFormation required in deploying the microservice to AWS.
 
+# Table of Contents
+* [Overview](#overview)
+* [Service Requirements](#service-requirements)
+  * [Event Schema](#event-schema)
+    * [Received Message Event](#received-message-event)
+    * [Weekly Message Event](#weekly-message-event)
+    * [Success Rate Event](#success-rate-event)
+  * [Assumptions](#assumptions)
+* [Soltion Documentation](#solution-documentation)
+  * [Architecture](#architecture)
+  * [DynamoDB Schema](#dynamodb-schema)
+  * [Design Considerations](#design-considerations)
+  * [Future Roadmap](#future-roadmap)
+* [Testing](#testing)
+
 # Service Requirements
 
 ## Event schema
@@ -89,7 +104,7 @@ Table: `weekly_diagnostic`
  * DynamoDB is not a suitable for a full analytics system. It is intended as a mock datastore for the remaining decisions about the service. 
  * Except to create tables easily queriable by moduleID (the current main use case), little schema design has been considered.
 
-
+## Future Roadmap 
 
 # Testing 
 
