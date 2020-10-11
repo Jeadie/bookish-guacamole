@@ -58,7 +58,7 @@ SNSTopic Name: `success_rate`
 
 # Solution Documentation
 ## Architecture
-![Infrastructure Architecture](architecture-diagram.png)
+![Infrastructure Architecture](architecture-diagram.svg)
   The above diagram outlines the design for the service. Amazon SNS is used as the messaging service within the event-driven architecture. AWS Lambdas are used as the underlying compute for the service, and are both consumers and produces of messages from the various events (see above for event schema and naming). DynamoDB is used as a mock data lake (for need of rapid development) for the service. This choice is for two reasons: namely the prior mentioned rapid development, and DynamoDB's event triggers. 
 
 The Success Rate microservice listens for updates from the table ``, whereby weekly diagnostic data is stored (see [below](design-considerations) for rationale). 
