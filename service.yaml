@@ -78,7 +78,7 @@ Resources:
                       Item=entry
                   )
                   print("Successfully saved entry.")
-      Runtime: python3.8
+      Runtime: python3.7
 
   MessageRecvInvokePermission:
     Type: 'AWS::Lambda::Permission'
@@ -122,7 +122,7 @@ Resources:
                       Item=entry
                   )
                   print("Successfully saved entry.")
-      Runtime: python3.8
+      Runtime: python3.7
 
   WeeklyDiagnosticInvokePermission:
     Type: 'AWS::Lambda::Permission'
@@ -139,7 +139,7 @@ Resources:
       Handler: index.handler
       Environment:
         Variables:
-          SUCCESS_SNS_ARN: !GetAtt SuccessRateSNS.Arn
+          SUCCESS_SNS_ARN: !Ref SuccessRateSNS
       Role: !GetAtt LambdaRole.Arn
       Code:
         ZipFile: |
@@ -175,7 +175,7 @@ Resources:
                       Message=json.dumps(message)
                   )
                   print(f"Message sent: {sns_response['MessageId']}")
-      Runtime: python3.8
+      Runtime: python3.7
 
   ##
   # DYNAMO DB
