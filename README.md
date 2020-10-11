@@ -3,8 +3,15 @@
 # Overview
 Bookish Guacomole deploys a basic analytics microservice using AWS Lambda, SNS and DynamoDB. `service.yaml` contains the full CloudFormation required in deploying the microservice to AWS.
 
+## Installation
+To build using AWS CloudFormation:
+```
+aws cloudformation create-stack --stack-name bookish-guacamole --template-body file://$(pwd)/service.yaml --capabilities=CAPABILITY_NAMED_IAM
+```
+
 # Table of Contents
 * [Overview](#overview)
+  * [Installation](#installation)
 * [Service Requirements](#service-requirements)
   * [Event Schema](#event-schema)
     * [Received Message Event](#received-message-event)
@@ -16,6 +23,9 @@ Bookish Guacomole deploys a basic analytics microservice using AWS Lambda, SNS a
   * [DynamoDB Schema](#dynamodb-schema)
   * [Design Considerations](#design-considerations)
   * [Future Roadmap](#future-roadmap)
+    * [Streaming](#streaming)
+    * [Event Schema Management](#event-schema-management)
+    * [Data Lake](#data-lake)
 * [Testing](#testing)
 
 # Service Requirements
@@ -105,6 +115,14 @@ Table: `weekly_diagnostic`
  * Except to create tables easily queriable by moduleID (the current main use case), little schema design has been considered.
 
 ## Future Roadmap 
+### Streaming
+Using SNS and AWS Lambda (or some other basic compute) is a quick, greenfield means to create a streaming analytics service. However, larger designs can benefit from a variety of larger, more robust systems. The most common streaming framework used is Apache Kafka. Kafka has a suite of built in tools common to analytics platforms: metrics, log aggregation, etc (that our basic example would have to be designed on top of the service). Additionally, AWS MSK is a managed Kafka service, reducing the engineering and upkeep cost of such a solution. For Kafka's advantages, it forces a stronger (than other designs) lock-in to a specific platform. 
+
+### Event Schema Management
+Managing event schema is an important part of a data system, as it adapts over time. How consumers handle events and their varying (over time) schemas, is often through a schema registry. Schema registries are a common tool in both open source and managed software. Consider two common examples: Confluent's schema registry and AWS's EventBridge Schema Registry. The key choice between such tools sits on the underlying streaming architecture. AWS's schema registry requires the event bus to be on AWS's EventBridge. Likewise, Confluent's registry is the base for a Kafka setup. Separate to this, schema management, generally at the start of schemas, can be done by well designed microservices that persist data in a common format (or with data remediation applied), and handles new events with a routing pattern. 
+
+### Data Lake 
+Batch workloads can (and often are - e.g. machine learning workloads) ontop of a streaming system. For this, and before considering any such batch processing frameworks, the data must be stored for use. DynamoDB would not be a strong choice for a data lake. For one, it has a substantially high storage cost (compared to alternative solutions). It does, however, maintain strong transactional value due to its inherent relations. This makes it more viable as a data warehousing, than a data lake. It could be used as an excellent metadata store for any data lake (consider a S3 data lake with metadata stored in dynamoDB).
 
 # Testing 
 
