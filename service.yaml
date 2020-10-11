@@ -23,21 +23,7 @@ Resources:
     Type: AWS::SNS::Topic
     Properties: 
       TopicName: success_rate
-
-      #  SNSPolicy:
-      #    Type: 'AWS::SNS::TopicPolicy'
-      #    Properties:
-      #      Topics: [ !Ref 'SuccessRateSNS',  !Ref 'RecvMessageSNS',  !Ref 'WeeklyDiagnosticSNS' ]
-      #      PolicyDocument:
-      #        Statement:
-      #          - Effect: Allow
-      #            Action: 'sns:Publish'
-      #            Principal:
-      #              AWS: '*'
-      #            Condition:
-      #              ArnLike:
-      #                AWS:SourceArn: !Sub 'arn:aws:*:*:${AWS::AccountId}:*'
-                
+         
   ##
   # LAMBDA FUNCTIONS
   ##
@@ -57,6 +43,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSLambdaExecute
         - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonSNSFullAccess
       Path: /
 
   ProcessMessageRecvFunction:
@@ -64,32 +51,36 @@ Resources:
     Properties:
       FunctionName: ProcessMessageRecv
       Description: Processes message_recv from SNS topic and save to DynamoDB.
-      Handler: index.handlera
+      Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Code:
         ZipFile: |
-          var AWS = require('aws-sdk');
-          exports.handler = function(event, context) {
-            console.log('Received event --', JSON.stringify(event, null, 4));
-             const dynamoDB = new AWS.DynamoDB.DocumentClient();
-             event.Records.forEach(function(msg) {
-               var message  =  JSON.parse(msg.Sns.Message);
-               const params = {
-                 TableName: "message_recv",
-                 Item: {
-                   moduleId: message.moduleId ,
-                   timestamp: message.timestamp,
-                   }
-               };
-               dynamoDB
-                   .put(params)
-                   .promise()
-                   .then(res => res)
-                   .catch(err => err);
-               }
-             );
-          };
-      Runtime: nodejs12.x
+          import boto3
+          import json
+          dynamodb = boto3.client('dynamodb')
+          
+          def handler(event, context):
+              print(f"Event: {event}")
+              for r in event["Records"]:
+                  print(f"Records: {r}")
+                  msg = json.loads(r["Sns"]["Message"])
+                  print(f"Message: {msg}")
+                  print(msg, type(msg))
+                  entry = {
+                      'moduleId': {
+                          'S': msg["moduleid"]
+                      },
+                      'timestamp':{
+                          'N': str(msg['timestamp'])
+                      }
+                  }
+                  print(f"Entry: {entry}")
+                  dynamodb.put_item(
+                      TableName='message_recv',
+                      Item=entry
+                  )
+                  print("Successfully saved entry.")
+      Runtime: python3.8
 
   MessageRecvInvokePermission:
     Type: 'AWS::Lambda::Permission'
@@ -107,29 +98,35 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Code:
         ZipFile: |
-          var AWS = require('aws-sdk');
-          exports.handler = function(event, context) {
-            console.log('Received event --', JSON.stringify(event, null, 4));
-             const dynamoDB = new AWS.DynamoDB.DocumentClient();
-             event.Records.forEach(function(msg) {
-               var message = JSON.parse(msg.Sns.Message);
-               const params = {
-                 TableName: "weekly_diagnostics",
-                 Item: {
-                   moduleId: message.moduleId ,
-                   timestamp: message.timestamp,
-                   attempts: message.attempts
-                   }
-               };
-               dynamoDB
-                   .put(params)
-                   .promise()
-                   .then(res => res)
-                   .catch(err => err);
-               }
-            );
-          };
-      Runtime: nodejs12.x
+          import boto3
+          import json
+          dynamodb = boto3.client('dynamodb')
+          
+          def handler(event, context): 
+              print(f"Event: {event}")
+              for r in event["Records"]:
+                  print(f"Records: {r}")
+                  msg = json.loads(r["Sns"]["Message"])
+                  print(f"Message: {msg}")
+                  print(msg, type(msg))
+                  entry = {
+                      'moduleId': {
+                          'S': msg["moduleid"]
+                      },
+                      'timestamp':{
+                          'N': str(msg['timestamp'])
+                      },
+                      'attempts':{
+                          'N': str(msg['attempts'])
+                      }
+                  }
+                  print(f"Entry: {entry}")
+                  dynamodb.put_item(
+                      TableName='weekly_diagnostic',
+                      Item=entry
+                  )
+                  print("Successfully saved entry.")
+      Runtime: python3.8
 
   WeeklyDiagnosticInvokePermission:
     Type: 'AWS::Lambda::Permission'
@@ -144,16 +141,45 @@ Resources:
       FunctionName: SuccessRate
       Description: Computes the success rate of modules from DynamoDB events.
       Handler: index.handler
+      Environment:
+        Variables:
+          SUCCESS_SNS_ARN: !GetAtt SuccessRateSNS.Arn
       Role: !GetAtt LambdaRole.Arn
       Code:
         ZipFile: |
-          var response = require('cfn-response');
-          exports.handler = function(event, context) {
-             var responseData = {Value: event.ResourceProperties.List};
-             responseData.Value.push(event.ResourceProperties.AppendedItem);
-             response.send(event, context, response.SUCCESS, responseData);
-          };
-      Runtime: nodejs12.x
+          import boto3
+          from boto3.dynamodb.conditions import Key
+          
+          import json
+          import os
+          from datetime import datetime, timezone
+          
+          dynamodb = boto3.resource('dynamodb')
+          
+          def handler(event, context): 
+              print(f"Event: {event}")
+              for r in event["Records"]:
+                  print(f"Records: {r}")
+                  msg = r["dynamodb"]["NewImage"]
+                  moduleId = msg["moduleId"]["S"]
+                  attempts = float(msg["attempts"]["N"])
+                  successful_messages = dynamodb.Table('message_recv').query(
+                      KeyConditionExpression=Key('moduleId').eq(moduleId)
+                  )
+                  rate = len(successful_messages)/attempts
+                  print(f"Success rate for module: {moduleId} is {rate*100}%")
+                  message = {
+                    "moduleId": moduleId,
+                    "timestamp": int((datetime.now() - datetime(1970, 1, 1)).total_seconds()),
+                    "success_rate": rate
+                  }
+                  print(f"Message to publish to {os.environ['SUCCESS_SNS_ARN']}: {message}")
+                  sns_response = boto3.client('sns').publish(
+                      TopicArn=os.environ["SUCCESS_SNS_ARN"],
+                      Message=json.dumps(message)
+                  )
+                  print(f"Message sent: {sns_response['MessageId']}")
+      Runtime: python3.8
 
   ##
   # DYNAMO DB
