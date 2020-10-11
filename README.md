@@ -1,7 +1,7 @@
 # bookish-guacamole
 
 # Overview
-TODO
+Bookish Guacomole deploys a basic analytics microservice using AWS Lambda, SNS and DynamoDB. 
 
 # Service Requirements
 ## Assumptions 
@@ -89,3 +89,20 @@ Table: `weekly_diagnostic`
  * The decision to trigger the success rate based off the weekly diagnostic is for two reasons (and for lack of strict requirement). Firstly, more frequent updates will be incorrect and/or require data remediation. Consider `message_recv` events for a module with a timestamp after the module's most recent `weekly_diagnostic`. Aggregating such successful messages will bias the success rate (hence incorrect), and depending on the use of the `success_rate` events, other microservices will require data remediation (once a new `weekly_diagnostic` for the module arrives). 
  * DynamoDB is not a suitable for a full analytics system. It is intended as a mock datastore for the remaining decisions about the service. 
  * Except to create tables easily queriable by moduleID (the current main use case), little schema design has been considered.
+
+# Testing 
+
+To test the `mesg_recv` lambda: 
+```
+aws sns publish --topic-arn=<MESG-RECV-ARN> --message '{"moduleid": "iAmAModule", "timestamp": 1234567890}'
+```
+
+To test the 'weekly_diagnostic` lambda: 
+```
+aws sns publish --topic-arn=<WEEKLY-DIAGNOSTIC-ARN> --message '{"moduleid": "iAmAModule", "timestamp": 9876543210, "attempts": 42}'
+```
+
+
+
+
+
